@@ -1,0 +1,5 @@
+{
+  "name": "dbdoodle",
+  "main": "party/server.ts",
+  "compatibilityDate": "2024-03-20"
+}

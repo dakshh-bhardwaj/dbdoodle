@@ -53,8 +53,8 @@
     "react-dom": "^19.2.4",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
+    "y-partykit": "^0.0.33",
     "y-protocols": "^1.0.7",
-    "y-webrtc": "^10.3.0",
     "yjs": "^13.6.31",
     "zustand": "^5.0.12"
   },
@@ -72,6 +72,7 @@
     "globals": "^17.4.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
+    "partykit": "^0.0.115",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "shadcn": "^4.0.8",

@@ -1,6 +1,7 @@
 allowBuilds:
   esbuild: true
   msw: true
+  workerd: set this to true or false
 onlyBuiltDependencies:
   - '@clerk/shared'
   - esbuild

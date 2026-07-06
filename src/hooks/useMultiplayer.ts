@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import * as Y from 'yjs'
-import { WebrtcProvider } from 'y-webrtc'
+import YPartyKitProvider from 'y-partykit/provider'
 import { useSchemaStore } from './useSchemaStore'
 import { create } from 'zustand'
 
@@ -33,7 +33,7 @@ export const undoManager = new Y.UndoManager([yTables, yRelationships], {
   trackedOrigins: new Set(['local']),
 })
 
-let provider: WebrtcProvider | null = null
+let provider: YPartyKitProvider | null = null
 
 export function useMultiplayer(roomId: string | null) {
   const setConnected = useMultiplayerStore(s => s.setConnected)
@@ -62,14 +62,12 @@ export function useMultiplayer(roomId: string | null) {
       return
     }
 
-    // Initialize WebRTC provider with multiple reliable signaling servers
-    provider = new WebrtcProvider(`dbdoodle-room-${roomId}`, yDoc, {
-      signaling: [
-        'wss://signaling.yjs.dev',
-        'wss://y-webrtc-signaling-eu.herokuapp.com',
-        'wss://y-webrtc-signaling-us.herokuapp.com'
-      ]
-    })
+    // Initialize PartyKit provider
+    const host = window.location.hostname === 'localhost' 
+      ? 'localhost:1999' 
+      : 'dbdoodle.dakshh-bhardwaj.partykit.dev'
+
+    provider = new YPartyKitProvider(host, roomId, yDoc)
 
     const handleSynced = () => setConnected(true)
     const handlePeers = () => {
