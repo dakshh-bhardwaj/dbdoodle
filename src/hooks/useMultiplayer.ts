@@ -5,6 +5,25 @@ import { LiveblocksYjsProvider } from '@liveblocks/yjs'
 import { useSchemaStore } from './useSchemaStore'
 import { create } from 'zustand'
 
+export type ChatMessage = {
+  id: string
+  text: string
+  userId: string
+  userName: string
+  userColor: string
+  timestamp: number
+}
+
+const COLORS = [
+  '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
+  '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'
+]
+
+export const localUser = {
+  id: Math.random().toString(36).slice(2, 9),
+  name: `User-${Math.floor(Math.random() * 1000)}`,
+  color: COLORS[Math.floor(Math.random() * COLORS.length)]
+}
 export const useMultiplayerStore = create<{
   connected: boolean
   peers: number
@@ -29,6 +48,7 @@ export const yDoc = new Y.Doc()
 // We store the schema in maps to allow granular merging
 export const yTables = yDoc.getMap('tables')
 export const yRelationships = yDoc.getMap('relationships')
+export const yChatMessages = yDoc.getArray<ChatMessage>('chat_messages')
 
 export const undoManager = new Y.UndoManager([yTables, yRelationships], {
   trackedOrigins: new Set(['local']),
@@ -78,6 +98,7 @@ export function useMultiplayer(roomId: string | null) {
     leaveRoomFn = leave
     
     provider = new LiveblocksYjsProvider(room, yDoc)
+    provider.awareness.setLocalStateField('user', localUser)
 
     const handleSynced = () => setConnected(true)
     const handlePeers = () => {
@@ -167,14 +188,27 @@ export function useMultiplayer(roomId: string | null) {
       }, 0)
     }
 
-    yTables.observe(observer)
-    yRelationships.observe(observer)
-
-    return () => {
-      yTables.unobserve(observer)
-      yRelationships.unobserve(observer)
-    }
-  }, [roomId])
+      yTables.observe(observer)
+      yRelationships.observe(observer)
+      
+      const chatObserver = (event: Y.YArrayEvent<ChatMessage>, transaction: Y.Transaction) => {
+        if (transaction.origin === 'local') return
+        
+        // If there are added items, increment unread count
+        if (event.changes.added.size > 0) {
+          import('@/hooks/useChatStore').then(({ useChatStore }) => {
+            useChatStore.getState().incrementUnread()
+          })
+        }
+      }
+      yChatMessages.observe(chatObserver)
+  
+      return () => {
+        yTables.unobserve(observer)
+        yRelationships.unobserve(observer)
+        yChatMessages.unobserve(chatObserver)
+      }
+    }, [roomId])
 }
 
 export function getAwareness() {

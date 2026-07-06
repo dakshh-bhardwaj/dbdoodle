@@ -22,6 +22,7 @@ import { useLogBarStore } from '@/hooks/useLogBarStore'
 import { useSchemaStore } from '@/hooks/useSchemaStore'
 import { useShareUrl } from '@/hooks/useShareUrl'
 import { useValidation } from '@/hooks/useValidation'
+import { useChatStore } from '@/hooks/useChatStore'
 import { useMultiplayerStore, undoManager } from '@/hooks/useMultiplayer'
 import { findOpenPosition } from '@/lib/layout'
 import {
@@ -42,6 +43,7 @@ import {
   Redo2Icon,
   Share2Icon,
   ShieldCheckIcon,
+  MessageSquareIcon,
   SquarePlusIcon,
   Undo2Icon,
   UploadIcon,
@@ -61,6 +63,10 @@ export function Toolbar() {
   const { copyShareUrl } = useShareUrl()
   const toggleLogBar = useLogBarStore((s) => s.toggle)
   const { errorCount } = useValidation()
+  const { roomId } = useShareUrl()
+  const setChatOpen = useChatStore((s) => s.setOpen)
+  const isChatOpen = useChatStore((s) => s.isOpen)
+  const unreadCount = useChatStore((s) => s.unreadCount)
   const peers = useMultiplayerStore((s) => s.peers)
   const canUndo = useMultiplayerStore((s) => s.canUndo)
   const canRedo = useMultiplayerStore((s) => s.canRedo)
@@ -327,6 +333,30 @@ export function Toolbar() {
             {`${peers} other user${peers === 1 ? '' : 's'} connected`}
           </TooltipContent>
         </Tooltip>
+
+        {roomId && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="Toggle chat"
+                className="relative cursor-pointer p-1 ml-1"
+                onClick={() => setChatOpen(!isChatOpen)}
+              >
+                <MessageSquareIcon className="text-muted-foreground size-4 hover:text-foreground transition-colors" />
+                {unreadCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-[10px] tabular-nums"
+                  >
+                    {unreadCount}
+                  </Badge>
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Toggle chat</TooltipContent>
+          </Tooltip>
+        )}
 
         <div className="bg-border mx-1 h-5 w-px" />
         {/* Add Table / Sample */}

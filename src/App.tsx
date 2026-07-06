@@ -3,6 +3,7 @@ import { Toolbar } from '@/components/canvas/Toolbar'
 import { LogBar } from '@/components/panels/LogBar'
 import { RelationshipEditor } from '@/components/panels/RelationshipEditor'
 import { TableEditor } from '@/components/panels/TableEditor'
+import { ChatPanel } from '@/components/panels/ChatPanel'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAutoSave } from '@/hooks/useAutoSave'
@@ -25,6 +26,7 @@ function AppInner() {
         <SchemaCanvas />
         <TableEditor />
         <RelationshipEditor />
+        <ChatPanel />
       </div>
       <LogBar />
     </div>
