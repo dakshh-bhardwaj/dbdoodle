@@ -1,0 +1,433 @@
+import { ExportSqlDialog } from '@/components/panels/ExportSqlDialog'
+import { ImportSqlDialog } from '@/components/panels/ImportSqlDialog'
+import { LoadDialog } from '@/components/panels/LoadDialog'
+import { ViewSqlDialog } from '@/components/panels/ViewSqlDialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { useLogBarStore } from '@/hooks/useLogBarStore'
+import { useSchemaStore } from '@/hooks/useSchemaStore'
+import { useShareUrl } from '@/hooks/useShareUrl'
+import { useValidation } from '@/hooks/useValidation'
+import { useMultiplayerStore, undoManager } from '@/hooks/useMultiplayer'
+import { findOpenPosition } from '@/lib/layout'
+import {
+  downloadAsJSON,
+  downloadAsSQL,
+  importFromJSON,
+  importFromSQL,
+} from '@/services/export-import'
+import type { SQLDialect } from '@/services/sql-parser'
+import { useReactFlow } from '@xyflow/react'
+import {
+  DownloadIcon,
+  EyeIcon,
+  FilePlusIcon,
+  FolderOpenIcon,
+  MenuIcon,
+  PencilIcon,
+  Redo2Icon,
+  Share2Icon,
+  ShieldCheckIcon,
+  SquarePlusIcon,
+  Undo2Icon,
+  UploadIcon,
+  XIcon,
+  UsersIcon,
+} from 'lucide-react'
+import { useCallback, useRef, useState } from 'react'
+import { toast } from 'sonner'
+
+export function Toolbar() {
+  const addTable = useSchemaStore((s) => s.addTable)
+  const schemaName = useSchemaStore((s) => s.schemaName)
+  const setSchemaName = useSchemaStore((s) => s.setSchemaName)
+  const setSchema = useSchemaStore((s) => s.setSchema)
+  const newSchema = useSchemaStore((s) => s.newSchema)
+  const { getViewport, fitView } = useReactFlow()
+  const { copyShareUrl } = useShareUrl()
+  const toggleLogBar = useLogBarStore((s) => s.toggle)
+  const { errorCount } = useValidation()
+  const peers = useMultiplayerStore((s) => s.peers)
+  const canUndo = useMultiplayerStore((s) => s.canUndo)
+  const canRedo = useMultiplayerStore((s) => s.canRedo)
+
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [loadOpen, setLoadOpen] = useState(false)
+  const [importSqlOpen, setImportSqlOpen] = useState(false)
+  const [exportSqlOpen, setExportSqlOpen] = useState(false)
+  const [viewSqlOpen, setViewSqlOpen] = useState(false)
+  const [pendingSqlFile, setPendingSqlFile] = useState<File | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+  const nameInputRef = useRef<HTMLInputElement>(null)
+  const jsonFileInputRef = useRef<HTMLInputElement>(null)
+  const sqlFileInputRef = useRef<HTMLInputElement>(null)
+
+  function startEditing() {
+    setEditValue(schemaName)
+    setEditing(true)
+    requestAnimationFrame(() => nameInputRef.current?.select())
+  }
+
+  function commitName() {
+    const trimmed = editValue.trim()
+    if (trimmed && trimmed !== schemaName) {
+      setSchemaName(trimmed)
+    }
+    setEditing(false)
+  }
+
+  const getViewportCenter = useCallback(() => {
+    const { x, y, zoom } = getViewport()
+    return {
+      x: (-x + window.innerWidth / 2) / zoom,
+      y: (-y + window.innerHeight / 2) / zoom,
+    }
+  }, [getViewport])
+
+  const handleAddTable = useCallback(() => {
+    const tables = useSchemaStore.getState().schema.tables
+    const position = findOpenPosition(tables, getViewportCenter())
+    addTable(`table_${Math.random().toString(36).slice(2, 6)}`, position)
+  }, [addTable, getViewportCenter])
+
+  async function handleShare() {
+    try {
+      await copyShareUrl()
+      toast.success('Share URL copied')
+    } catch {
+      toast.error('Failed to copy URL')
+    }
+  }
+
+  function handleExportJSON() {
+    const { schema, schemaName: name } = useSchemaStore.getState()
+    const filename = name ? `${name}.json` : undefined
+    downloadAsJSON(schema, filename)
+  }
+
+  function handleExportSQL() {
+    setExportSqlOpen(true)
+  }
+
+  function handleViewSQL() {
+    setViewSqlOpen(true)
+  }
+
+  function handleExportSqlConfirm(dialect: SQLDialect) {
+    const { schema, schemaName: name } = useSchemaStore.getState()
+    const filename = name ? `${name}.sql` : undefined
+    downloadAsSQL(schema, filename, dialect)
+  }
+
+  async function handleImportJSON(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const imported = await importFromJSON(file)
+      useSchemaStore.getState().newSchema()
+      setSchema(imported)
+      requestAnimationFrame(() => fitView({ padding: 0.1, maxZoom: 1 }))
+      toast.success(`Imported "${file.name}"`)
+    } catch {
+      toast.error('Invalid schema file')
+    }
+    e.target.value = ''
+  }
+
+  function handleImportSQLClick() {
+    sqlFileInputRef.current?.click()
+  }
+
+  function handleSqlFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPendingSqlFile(file)
+    setImportSqlOpen(true)
+    e.target.value = ''
+  }
+
+  async function handleImportSqlConfirm(dialect: SQLDialect) {
+    if (!pendingSqlFile) return
+    try {
+      const imported = await importFromSQL(pendingSqlFile, dialect)
+      useSchemaStore.getState().newSchema()
+      setSchema(imported)
+      requestAnimationFrame(() => fitView({ padding: 0.1, maxZoom: 1 }))
+      toast.success(`Imported "${pendingSqlFile.name}"`)
+    } catch {
+      toast.error('Invalid schema file')
+    }
+    setPendingSqlFile(null)
+  }
+
+  return (
+    <>
+      {/* Top-left hamburger menu */}
+      <div className="border-border bg-card/95 absolute top-4 left-4 z-10 rounded-lg border shadow-lg backdrop-blur-sm">
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Menu"
+                  className="m-0.5 flex size-8 items-center justify-center p-0"
+                >
+                  <MenuIcon
+                    className={`absolute size-5 transition-[transform,opacity] duration-200 ${menuOpen ? 'scale-0 rotate-90 opacity-0' : 'scale-100 rotate-0 opacity-100'}`}
+                  />
+                  <XIcon
+                    className={`absolute size-5 transition-[transform,opacity] duration-200 ${menuOpen ? 'scale-100 rotate-0 opacity-100' : 'scale-0 -rotate-90 opacity-0'}`}
+                  />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Menu</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="start" className="mt-1">
+            <DropdownMenuItem
+              onClick={() => {
+                newSchema()
+                toast.success('New schema created')
+              }}
+            >
+              <FilePlusIcon className="size-3.5" />
+              New
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setLoadOpen(true)}>
+              <FolderOpenIcon className="size-3.5" />
+              Recent
+            </DropdownMenuItem>
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <DownloadIcon className="size-3.5" />
+                Export
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onClick={handleExportJSON}>
+                  JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportSQL}>
+                  SQL
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <UploadIcon className="size-3.5" />
+                Import
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem
+                  onClick={() => jsonFileInputRef.current?.click()}
+                >
+                  JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleImportSQLClick}>
+                  SQL
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            <DropdownMenuItem onClick={handleViewSQL}>
+              <EyeIcon className="size-3.5" />
+
+              View SQL
+            </DropdownMenuItem>
+
+            <DropdownMenuItem onClick={handleShare}>
+              <Share2Icon className="size-3.5" />
+              Share
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <input
+          ref={jsonFileInputRef}
+          type="file"
+          accept=".json"
+          aria-label="Import schema from JSON"
+          className="hidden"
+          onChange={handleImportJSON}
+        />
+        <input
+          ref={sqlFileInputRef}
+          type="file"
+          accept=".sql"
+          aria-label="Import schema from SQL"
+          className="hidden"
+          onChange={handleSqlFileSelected}
+        />
+      </div>
+
+      {/* Toolbar — schema name + actions */}
+      <div className="border-border bg-card/95 absolute top-4 right-4 z-10 flex items-center gap-1 rounded-lg border px-2 py-1.5 shadow-lg backdrop-blur-sm">
+        {/* Schema name (inline editable) */}
+        {editing ? (
+          <input
+            ref={nameInputRef}
+            name="schema-name"
+            aria-label="Schema name"
+            autoComplete="off"
+            className="border-primary bg-background text-foreground ring-primary/30 mx-1 w-24 rounded border px-1.5 py-0.5 text-xs font-semibold ring-1 outline-none md:w-32"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitName()
+              if (e.key === 'Escape') setEditing(false)
+            }}
+          />
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="xs"
+                className="group hover:border-border mx-1 max-w-24 gap-1.5 border border-dashed border-transparent font-semibold md:max-w-40"
+                onClick={startEditing}
+              >
+                <span className="truncate">{schemaName}</span>
+                <PencilIcon className="text-muted-foreground/0 group-hover:text-muted-foreground size-2.5 shrink-0 transition-colors" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Click to rename</TooltipContent>
+          </Tooltip>
+        )}
+
+        <div className="bg-border mx-1 h-5 w-px" />
+
+        {/* Multiplayer Status */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center justify-center gap-1.5 px-1.5 text-xs font-medium text-muted-foreground">
+              <UsersIcon className={`size-4 ${peers > 0 ? 'text-green-500' : 'text-blue-500'}`} />
+              <span className="tabular-nums">{peers}</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            {`${peers} other user${peers === 1 ? '' : 's'} connected`}
+          </TooltipContent>
+        </Tooltip>
+
+        <div className="bg-border mx-1 h-5 w-px" />
+        {/* Add Table / Sample */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="xs" onClick={handleAddTable}>
+              <SquarePlusIcon className="size-3.5" />
+              <span className="hidden md:inline">Add Table</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Add a new table to the canvas</TooltipContent>
+        </Tooltip>
+
+        <div className="bg-border mx-1 h-5 w-px" />
+
+        {/* Undo / Redo */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => undoManager.undo()}
+              disabled={!canUndo}
+              aria-label="Undo"
+            >
+              <Undo2Icon className="size-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Undo (Ctrl+Z)</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => undoManager.redo()}
+              disabled={!canRedo}
+              aria-label="Redo"
+            >
+              <Redo2Icon className="size-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Redo (Ctrl+Shift+Z)</TooltipContent>
+        </Tooltip>
+
+        <div className="bg-border mx-1 h-5 w-px" />
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="Toggle validation panel"
+              className="relative cursor-pointer p-1"
+              onClick={() => {
+                const isErrorsActive =
+                  useLogBarStore.getState().activeTab === 'errors'
+                const isExpanded = useLogBarStore.getState().expanded
+
+                if (isExpanded && isErrorsActive) {
+                  toggleLogBar()
+                } else {
+                  useLogBarStore.getState().setActiveTab('errors')
+                  if (!isExpanded) toggleLogBar()
+                }
+              }}
+            >
+              <ShieldCheckIcon className="text-muted-foreground size-4" />
+              {errorCount > 0 && (
+                <Badge
+                  variant="destructive"
+                  className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-[10px] tabular-nums"
+                >
+                  {errorCount}
+                </Badge>
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Toggle validation panel</TooltipContent>
+        </Tooltip>
+      </div>
+
+      <LoadDialog open={loadOpen} onOpenChange={setLoadOpen} />
+      <ImportSqlDialog
+        open={importSqlOpen}
+        onOpenChange={(open) => {
+          setImportSqlOpen(open)
+          if (!open) setPendingSqlFile(null)
+        }}
+        fileName={pendingSqlFile?.name ?? ''}
+        onConfirm={handleImportSqlConfirm}
+      />
+      <ExportSqlDialog
+        open={exportSqlOpen}
+        onOpenChange={setExportSqlOpen}
+        onConfirm={handleExportSqlConfirm}
+      />
+      <ViewSqlDialog
+        open={viewSqlOpen}
+        onOpenChange={setViewSqlOpen}
+      />
+    </>
+  )
+}
