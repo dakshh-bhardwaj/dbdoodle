@@ -31,13 +31,17 @@ export function useShareUrl() {
   return {
     roomId,
     generateShareUrl: () => {
+      const schema = useSchemaStore.getState().schema
       const url = new URL(window.location.href)
       url.searchParams.set('room', roomId || '')
+      url.hash = `schema=${SharingService.encodeSchema(schema)}`
       return url.toString()
     },
     copyShareUrl: async () => {
+      const schema = useSchemaStore.getState().schema
       const url = new URL(window.location.href)
       url.searchParams.set('room', roomId || '')
+      url.hash = `schema=${SharingService.encodeSchema(schema)}`
       const urlString = url.toString()
       await navigator.clipboard.writeText(urlString)
       return urlString
