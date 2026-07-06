@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getAwareness, useMultiplayerStore } from '@/hooks/useMultiplayer'
+import { getAwareness, useMultiplayerStore, yDoc } from '@/hooks/useMultiplayer'
 import { useReactFlow, useViewport } from '@xyflow/react'
 
 const CURSOR_COLORS = [
@@ -23,8 +23,9 @@ export function LiveCursors() {
     const handleAwarenessUpdate = () => {
       const states = awareness.getStates()
       const newPeers = new Map()
-      states.forEach((state, clientId) => {
-        if (clientId !== awareness.clientID && state.cursor) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      states.forEach((state: any, clientId: number) => {
+        if (clientId !== yDoc.clientID && state.cursor) {
           newPeers.set(clientId, state)
         }
       })
