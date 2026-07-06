@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import * as Y from 'yjs'
-import YPartyKitProvider from 'y-partykit/provider'
+import { createClient, Room } from '@liveblocks/client'
+import { LiveblocksYjsProvider } from '@liveblocks/yjs'
 import { useSchemaStore } from './useSchemaStore'
 import { create } from 'zustand'
 
@@ -33,7 +34,13 @@ export const undoManager = new Y.UndoManager([yTables, yRelationships], {
   trackedOrigins: new Set(['local']),
 })
 
-let provider: YPartyKitProvider | null = null
+let provider: LiveblocksYjsProvider | null = null
+let liveblocksRoom: Room | null = null
+
+// Initialize Liveblocks client
+const client = createClient({
+  publicApiKey: import.meta.env.VITE_LIVEBLOCKS_PUBLIC_KEY || 'pk_prod_xxxxxx',
+})
 
 export function useMultiplayer(roomId: string | null) {
   const setConnected = useMultiplayerStore(s => s.setConnected)
@@ -59,15 +66,18 @@ export function useMultiplayer(roomId: string | null) {
         provider.destroy()
         provider = null
       }
+      if (liveblocksRoom) {
+        client.leaveRoom(liveblocksRoom.id)
+        liveblocksRoom = null
+      }
       return
     }
 
-    // Initialize PartyKit provider
-    const host = window.location.hostname === 'localhost' 
-      ? 'localhost:1999' 
-      : 'dbdoodle.dakshh-bhardwaj.partykit.dev'
-
-    provider = new YPartyKitProvider(host, roomId, yDoc)
+    // Enter Liveblocks room
+    const { room, leave } = client.enterRoom(`dbdoodle-room-${roomId}`)
+    liveblocksRoom = room
+    
+    provider = new LiveblocksYjsProvider(room, yDoc)
 
     const handleSynced = () => setConnected(true)
     const handlePeers = () => {
@@ -86,6 +96,10 @@ export function useMultiplayer(roomId: string | null) {
         provider.awareness.off('change', handlePeers)
         provider.destroy()
         provider = null
+      }
+      if (liveblocksRoom) {
+        client.leaveRoom(liveblocksRoom.id)
+        liveblocksRoom = null
       }
       setConnected(false)
     }
