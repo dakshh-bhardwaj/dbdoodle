@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import * as Y from 'yjs'
 import { createClient } from '@liveblocks/client'
-import type { Room } from '@liveblocks/client'
 import { LiveblocksYjsProvider } from '@liveblocks/yjs'
 import { useSchemaStore } from './useSchemaStore'
 import { create } from 'zustand'
@@ -36,7 +35,6 @@ export const undoManager = new Y.UndoManager([yTables, yRelationships], {
 })
 
 let provider: LiveblocksYjsProvider | null = null
-let liveblocksRoom: Room | null = null
 let leaveRoomFn: (() => void) | null = null
 
 // Initialize Liveblocks client
@@ -71,14 +69,12 @@ export function useMultiplayer(roomId: string | null) {
       if (leaveRoomFn) {
         leaveRoomFn()
         leaveRoomFn = null
-        liveblocksRoom = null
       }
       return
     }
 
     // Enter Liveblocks room
     const { room, leave } = client.enterRoom(`dbdoodle-room-${roomId}`)
-    liveblocksRoom = room
     leaveRoomFn = leave
     
     provider = new LiveblocksYjsProvider(room, yDoc)
@@ -104,7 +100,6 @@ export function useMultiplayer(roomId: string | null) {
       if (leaveRoomFn) {
         leaveRoomFn()
         leaveRoomFn = null
-        liveblocksRoom = null
       }
       setConnected(false)
     }
